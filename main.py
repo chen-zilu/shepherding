@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from pydeck.data_utils.viewport_helpers import bbox_to_zoom_level
 
 
 def gaussian_field(particle_pos, sigma, radius, width, height, grid_size):
