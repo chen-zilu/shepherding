@@ -118,9 +118,19 @@ def PDE_simulation(params, gamma, delta, behav_type, DirectoryName):
 
     pert1 = 0.01 * np.random.randn(N)
     pert2 = 0.01 * np.random.randn(N)
+    #
+    # uH = roh * np.ones(N) + pert1
+    # uT = rot * np.ones(N) + pert2
 
-    uH = roh * np.ones(N) + pert1
-    uT = rot * np.ones(N) + pert2
+    x = np.linspace(-L / 2, L / 2, N, endpoint=False)
+
+    uH = np.zeros(N)
+    uT = np.zeros(N)
+
+    mask = (np.abs(x) < L / 6)  # 中心 1/3 区域
+    uH[mask] = roh + pert1[mask]
+    uT[mask] = rot + pert2[mask]
+
 
     # saved arrays (注意 MATLAB 用整数索引 T/samp_time + 1)
     n_save = int(round(T / samp_time)) + 1
@@ -135,6 +145,7 @@ def PDE_simulation(params, gamma, delta, behav_type, DirectoryName):
     dt_rk4 = [0.0, dt/2.0, dt/2.0, dt]
 
     # 准备绘图
+    print(f'{np.sum(uT)=}')
     # plt.ion()
     fig = plt.figure(figsize=(8,4))
     ax = fig.add_subplot(1,1,1)
@@ -193,6 +204,7 @@ def PDE_simulation(params, gamma, delta, behav_type, DirectoryName):
 
         # 绘图与保存
         if frame_rate > 0 and (step % frame_rate == 0):
+        # if frame_rate > 0:
             ax.clear()
             ax.plot(x, uH, linewidth=2.2, color='b', label='uH')
             ax.plot(x, uT, linewidth=2.2, color='magenta', label='uT')
@@ -221,12 +233,12 @@ if __name__ == '__main__':
     L = 80
     N = 200
     dt = 0.0001
-    T = 20
+    T = 50
     D = 5
     r0 = 0.5
 
     # Interaction parameters
-    kt = 3
+    kt = 5
     lambda_ = 2.5
     kh = 3
     xi = 2.5

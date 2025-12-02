@@ -40,13 +40,13 @@ def PDE_simulation_2D(params, gamma, delta, behav_type, DirectoryName):
 
     # ---------- TIME ----------
     numSteps = int(round(T / dt))
-    samp_time = 0.01
+    samp_time = 0.02
     frame_rate = int(round(samp_time / dt))
     n_save = int(round(T / samp_time)) + 1
 
     # ---------- INITIAL CONDITIONS ----------
-    uH = roh + 0.01 * np.random.randn(Nx, Ny)
-    uT = rot + 0.01 * np.random.randn(Nx, Ny)
+    uH = roh + 0.2 * np.random.randn(Nx, Ny)
+    uT = rot + 0.2 * np.random.randn(Nx, Ny)
 
     uH_save = np.zeros((n_save, Nx, Ny))
     uT_save = np.zeros((n_save, Nx, Ny))
@@ -55,37 +55,36 @@ def PDE_simulation_2D(params, gamma, delta, behav_type, DirectoryName):
     counter = 1
 
     # ---------- VECTOR FIELDS ----------
-    R = np.sqrt(X**2 + Y**2) + 1e-12
-    v1_x = X / R * (sigma / D) * r0 * kh
-    v1_y = Y / R * (sigma / D) * r0 * kh
-    v2 = ((2.0/3.0)*(delta*gamma + 1)*(xi**3)) * (r0/D) * kh
+    # 假设 X, Y, xi, gamma, delta 已定义
+    # 计算 R，避免除零
+    R = np.sqrt(X ** 2 + Y ** 2)
+    R_safe = np.where(R < 1e-12, 1e-12, R)  # 小于1e-12的值改成1e-12，避免除零
 
-    def v1_transient(xabs):
-        return (delta * (1 - 2 * gamma * xabs) * (xabs - xi)
-                + delta * (xabs + xi)
-                + gamma * xabs * (xi ** 2 - xabs ** 2)
-                + (2.0 / 3.0) * gamma * (xabs ** 3))
+    # 使用 R_safe 替代原来的 R
+    v1_x = (4 * X * xi ** 2 * (
+            3 * delta * X ** 2 + 3 * delta * Y ** 2 + 3 * delta * gamma * X ** 2 + 4 * delta * gamma * xi ** 2 + 3 * delta * gamma * Y ** 2 + 2 * gamma * xi ** 2 * R
+    )) / (3 * R_safe ** 3) / 300
 
-    v1 = ((2 * delta * xi + (2.0 / 3.0) * gamma * (xi ** 3)) * (((np.abs(x) >= xi) & (np.abs(x) <= (Lx / 2 - xi))).astype(float))
-          + v1_transient(np.abs(x)) * (np.abs(x) < xi).astype(float)
-          + v1_transient((Lx / 2) - np.abs(x)) * (np.abs(x) > (Lx / 2 - xi)).astype(float))
-    v1 = v1 * np.sign(x) * (sigma / D) * r0
-    v1 = v1 * kh / 30
-    v1_x = np.repeat(v1[:, np.newaxis], Ny, axis=1)
-    v1_y = np.repeat(v1[:, np.newaxis], Ny, axis=1).T
+    v1_y = (4 * xi ** 2 * Y * (
+            3 * delta * X ** 2 + 3 * delta * Y ** 2 + 3 * delta * gamma * X ** 2 + 4 * delta * gamma * xi ** 2 + 3 * delta * gamma * Y ** 2 + 2 * gamma * xi ** 2 * R
+    )) / (3 * R_safe ** 3) / 300
 
-    def v2_transient(xabs):
-        return (delta * (1 - gamma * xabs) * (xi ** 2 - (xabs ** 2))
-                + (2.0 / 3.0) * (delta * gamma + 1) * (xi ** 3)
-                - (2.0 / 3.0) * (gamma * xabs) * (xi ** 3 - (xabs ** 3))
-                + (gamma / 2.0) * (xi ** 4 - (xabs ** 4)))
+    v2_x = (4 * xi ** 4 * (
+            15 * R ** 3 + 15 * delta * X ** 2 + 15 * delta * Y ** 2 + 45 * delta * gamma * X ** 2 + 14 * delta * gamma * xi ** 2 + 15 * delta * gamma * Y ** 2 +
+            15 * gamma * X ** 2 * R + 14 * gamma * xi ** 2 * R + 15 * gamma * Y ** 2 * R
+    )) / (45 * R_safe ** 3) / 2000
 
-    v2 = ((2.0 / 3.0) * (delta * gamma + 1) * (xi ** 3) * (((np.abs(x) >= xi) & (np.abs(x) < (Lx / 2 - xi))).astype(float))
-          + (np.abs(x) < xi).astype(float) * v2_transient(np.abs(x))
-          + (np.abs(x) >= (Lx / 2 - xi)).astype(float) * v2_transient((Lx / 2) - np.abs(x)))
-    v2 = v2 * (r0 / D)
-    v2 = v2 * kh
-    v2 = np.repeat(v2[:, np.newaxis], Ny, axis=1)/30
+    v2_y = (4 * xi ** 4 * (
+            15 * delta * X ** 2 + 15 * delta * Y ** 2 + 15 * X ** 2 * R + 15 * Y ** 2 * R +
+            15 * delta * gamma * X ** 2 + 14 * delta * gamma * xi ** 2 + 45 * delta * gamma * Y ** 2 +
+            15 * gamma * X ** 2 * R + 14 * gamma * xi ** 2 * R + 15 * gamma * Y ** 2 * R
+    )) / (45 * R_safe ** 3) / 2000
+
+    v_max = 5
+    np.clip(v1_x, -v_max, v_max, out=v1_x)
+    np.clip(v1_y, -v_max, v_max, out=v1_y)
+    np.clip(v2_x, -v_max, v_max, out=v2_x)
+    np.clip(v2_y, -v_max, v_max, out=v2_y)
 
     # ---------- PREPARE PLOT ----------
     # plt.ion()
@@ -107,35 +106,43 @@ def PDE_simulation_2D(params, gamma, delta, behav_type, DirectoryName):
     # ---------- TIME INTEGRATION ----------
     for step in range(1, numSteps+1):
         # RK4 in space
-        def compute_rhs(uH_sp, uT_sp):
-            grad_uH_x = np.real(np.fft.ifft2(grad_x_hat * np.fft.fft2(uH_sp)))
-            grad_uH_y = np.real(np.fft.ifft2(grad_y_hat * np.fft.fft2(uH_sp)))
-            grad_uT_x = np.real(np.fft.ifft2(grad_x_hat * np.fft.fft2(uT_sp)))
-            grad_uT_y = np.real(np.fft.ifft2(grad_y_hat * np.fft.fft2(uT_sp)))
+        def compute_rhs(uH_sp_hat, uT_sp_hat):
+            grad_uH_x_hat = grad_x_hat * uH_sp_hat
+            grad_uH_y_hat = grad_y_hat * uH_sp_hat
+            grad_uT_x_hat = grad_x_hat * uT_sp_hat
+            grad_uT_y_hat = grad_y_hat * uT_sp_hat
 
-            rhs_uT_x = SRR * uT_sp * grad_uT_x + (SRR + kt * R) * uT_sp * grad_uH_x
-            rhs_uT_y = SRR * uT_sp * grad_uT_y + (SRR + kt * R) * uT_sp * grad_uH_y
+            grad_uH_x = np.real(np.fft.ifft2(grad_uH_x_hat))
+            grad_uH_y = np.real(np.fft.ifft2(grad_uH_y_hat))
+            grad_uT_x = np.real(np.fft.ifft2(grad_uT_x_hat))
+            grad_uT_y = np.real(np.fft.ifft2(grad_uT_y_hat))
 
-            rhs_uH_x = SRR * uH_sp * grad_uH_x + SRR * uH_sp * grad_uT_x - v2 * uH_sp * grad_uT_x - v1_x * uH_sp * uT_sp
-            rhs_uH_y = SRR * uH_sp * grad_uH_y + SRR * uH_sp * grad_uT_y - v2 * uH_sp * grad_uT_y - v1_y * uH_sp * uT_sp
+            uH_sp = np.real(np.fft.ifft2(uH_sp_hat))
+            uT_sp = np.real(np.fft.ifft2(uT_sp_hat))
+
+            rhs_uH_x = SRR * np.fft.fft2(uH_sp * grad_uH_x) + SRR * np.fft.fft2(uH_sp * grad_uT_x) - np.fft.fft2(v2_x * uH_sp * grad_uT_x) - np.fft.fft2(v1_x * uH_sp * uT_sp)
+            rhs_uH_y = SRR * np.fft.fft2(uH_sp * grad_uH_y) + SRR * np.fft.fft2(uH_sp * grad_uT_y) - np.fft.fft2(v2_y * uH_sp * grad_uT_y) - np.fft.fft2(v1_y * uH_sp * uT_sp)
+
+            rhs_uT_x = SRR * np.fft.fft2(uT_sp * grad_uT_x) + SRR * np.fft.fft2(uT_sp * grad_uH_x) + kt * np.fft.fft2(R * uT_sp * grad_uH_x)
+            rhs_uT_y = SRR * np.fft.fft2(uT_sp * grad_uT_y) + SRR * np.fft.fft2(uT_sp * grad_uH_y) + kt * np.fft.fft2(R * uT_sp * grad_uH_y)
 
             # rhs_uH_x = X*0.5*uH_sp
             # rhs_uH_y = Y*0.5*uH_sp
 
-            rhs_uH_hat = grad_x_hat * np.fft.fft2(rhs_uH_x) + grad_y_hat * np.fft.fft2(rhs_uH_y)
-            rhs_uT_hat = grad_x_hat * np.fft.fft2(rhs_uT_x) + grad_y_hat * np.fft.fft2(rhs_uT_y)
+            rhs_uH_hat = grad_x_hat * rhs_uH_x + grad_y_hat * rhs_uH_y
+            rhs_uT_hat = grad_x_hat * rhs_uT_x + grad_y_hat * rhs_uT_y
             return rhs_uH_hat, rhs_uT_hat
 
         uH_hat = np.fft.fft2(uH)
         uT_hat = np.fft.fft2(uT)
 
-        k1_H, k1_T = compute_rhs(uH, uT)
-        k2_H, k2_T = compute_rhs(np.real(np.fft.ifft2(uH_hat + 0.5*dt*k1_H)),
-                                 np.real(np.fft.ifft2(uT_hat + 0.5*dt*k1_T)))
-        k3_H, k3_T = compute_rhs(np.real(np.fft.ifft2(uH_hat + 0.5*dt*k2_H)),
-                                 np.real(np.fft.ifft2(uT_hat + 0.5*dt*k2_T)))
-        k4_H, k4_T = compute_rhs(np.real(np.fft.ifft2(uH_hat + dt*k3_H)),
-                                 np.real(np.fft.ifft2(uT_hat + dt*k3_T)))
+        k1_H, k1_T = compute_rhs(uH_hat, uT_hat)
+        k2_H, k2_T = compute_rhs(uH_hat + 0.5*dt*k1_H,
+                                 uT_hat + 0.5*dt*k1_T)
+        k3_H, k3_T = compute_rhs(uH_hat + 0.5*dt*k2_H,
+                                 uT_hat + 0.5*dt*k2_T)
+        k4_H, k4_T = compute_rhs(uH_hat + dt*k3_H,
+                                 uT_hat + dt*k3_T)
 
         uH_hat = diffusion_factor * (uH_hat + dt/6 * (k1_H + 2*k2_H + 2*k3_H + k4_H))
         uT_hat = diffusion_factor * (uT_hat + dt/6 * (k1_T + 2*k2_T + 2*k3_T + k4_T))
@@ -162,13 +169,13 @@ def PDE_simulation_2D(params, gamma, delta, behav_type, DirectoryName):
             # ax.set_title(f"Time {step*dt:.3f}")
             # plt.pause(0.01)
             # # plt.show()
-            print(f'{np.sum(uH)=}')
-            print(f'{np.sum(uT)=}')
 
             if counter < n_save:
                 uH_save[counter] = uH
                 uT_save[counter] = uT
                 counter += 1
+
+    plt.show()
 
     # ---------- SAVE ----------
     # os.makedirs(DirectoryName, exist_ok=True)
@@ -182,20 +189,20 @@ if __name__ == "__main__":
     Lx = Ly = 40
     Nx = Ny = 64
     dt = 0.01
-    T = 10
+    T = 100
     D = 5
     r0 = 0.5
-    kt = 1.5
+    kt = 1.6
     lambda_ = 2.5
-    kh = 4
-    xi = 2.5
+    kh = 1
+    xi = 5
     sigma = 1
-    SRR = 6
+    SRR = 1
     rot = 0.5
     roh = 0.5
 
     params = np.array([Lx, Ly, Nx, Ny, dt, T, D, r0, kt, lambda_, kh, xi, sigma, SRR, rot, roh], dtype=float)
-    gamma = 2.5
-    delta = 1.25
+    gamma = 2
+    delta = 1
     DirectoryName = "DATA_PDE_2D"
     PDE_simulation_2D(params, gamma, delta, "main", DirectoryName)

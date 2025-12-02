@@ -10,26 +10,33 @@ import io
 # ============================
 # ====== 参数设置 ============
 # ============================
-N_targets = 30
-N_herders = 50
-dt = 0.001
-arena_size = 5
+# --- 数量与基础设置 ---
+N_targets = 200       # target 数量大，形成明显群体
+N_herders = 200       # herder 数量提升，更容易形成包围趋势
+dt = 0.001            # 小步长保证稳定性
+arena_size = 5        # 场地半径
 center = np.array([0.0, 0.0])
-init_scale = 1.5
+init_scale = 1.5      # 初始分布范围（在中心较密集区域）
 
-xi = 0.6
-delta = 0.4
-herder_decision_gain = 30
-noise_level = 0.15
-escape_strength = 0.4
+# --- herder 相关参数 ---
+xi = 0.5              # 感知半径，目标需要靠近才触发控制
+delta = 0.3           # herder 站位偏移距离（决定 herder 要站到 target 外哪一侧）
+herder_decision_gain = 60   # 决策强度（调大后 herder 更积极包围 target）
 
-repel_strength = 1.2
-repel_range = 1.0  # 增加短程排斥距离
-threat_strength = 4.0
-threat_range = 1.0
+# --- target 自身行为参数 ---
+noise_level = 0.3    # 随机游走噪声（越大越混乱）
+escape_strength = 0.5 # 向外逃逸力（避免 target 只在中心打圈）
 
+# --- target 与 target / herder 之间相互作用 ---
+repel_strength = 10  # target-target 排斥力
+repel_range = 0.2     # 排斥距离（增大后更容易扩散开）
+
+threat_strength = 5.0 # herder 对 target 的威胁强度（越大 target 越被赶走）
+threat_range = 0.4    # 威胁范围
+
+# --- herder 与 herder 之间排斥（防止重叠） ---
 herder_repel_strength = 1.0
-herder_repel_range = 0.3
+herder_repel_range = 0.4
 
 # ============================
 # ====== 初始化位置 ==========
@@ -90,12 +97,14 @@ def update_herders():
         hpos = herders_pos[i]
         diff = targets_pos - hpos
         dist = np.linalg.norm(diff, axis=1)
+        dist_to_area = np.linalg.norm(targets_pos - center, axis=1)
         in_range = dist < xi
 
-        candidate_idx = [idx for idx in np.where(in_range)[0] if idx not in assigned_targets]
+        # candidate_idx = [idx for idx in np.where(in_range)[0] if idx not in assigned_targets]
+        candidate_idx = [idx for idx in np.where(in_range)[0]]
 
         if candidate_idx:
-            far_idx = candidate_idx[np.argmax(dist[candidate_idx])]
+            far_idx = candidate_idx[np.argmax(dist_to_area[candidate_idx])]
             assigned_targets.add(far_idx)
             tpos = targets_pos[far_idx]
 
@@ -120,7 +129,7 @@ def update_herders():
 # ============================
 # ====== 控制变量 ============
 # ============================
-sim_speed = 1.0
+sim_speed = 5.0
 paused = False
 speed_accum = 0.0
 sim_time = 0.0
@@ -161,6 +170,8 @@ ax.set_ylim(-arena_size, arena_size)
 targets_scatter = ax.scatter(targets_pos[:,0], targets_pos[:,1], c='blue', s=30, label="Targets")
 herders_scatter = ax.scatter(herders_pos[:,0], herders_pos[:,1], c='red', s=15, label="Herders")
 ax.legend(loc='upper right')
+
+ax.set_aspect('equal', 'box')
 
 herder_to_target_lines = []
 herder_to_goal_lines = []
